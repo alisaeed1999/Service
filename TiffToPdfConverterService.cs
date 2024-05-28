@@ -36,15 +36,15 @@ public class TiffToPdfConverterService : BackgroundService
 
     protected override async Task ExecuteAsync(CancellationToken stoppingToken)
     {
-
         _logger.LogInformation("Tiff to PDF Converter Service started.");
 
         // Initial check for existing TIFF files
         await Task.Run(() => DoWork(null), stoppingToken);
 
-        // Temporary manual trigger for testing
-        await Task.Delay(TimeSpan.FromSeconds(10), stoppingToken);
-        DoWork(null);
+        _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromHours(1)); _logger.LogInformation("Tiff to PDF Converter Service started.");
+
+        // Initial check for existing TIFF files
+        await Task.Run(() => DoWork(null), stoppingToken);
 
         _timer = new Timer(DoWork, null, TimeSpan.Zero, TimeSpan.FromHours(1));
 
@@ -57,7 +57,7 @@ public class TiffToPdfConverterService : BackgroundService
         // _logger.LogInformation("Checking for TIFF files to convert.");
         try
         {
-            var tiffFiles = Directory.GetFiles(_inputDirectory, "*.tiff");
+            var tiffFiles = Directory.GetFiles(_inputDirectory, "*.tif");
 
             if (tiffFiles.Length == 0)
             {
@@ -101,15 +101,30 @@ public class TiffToPdfConverterService : BackgroundService
         try
         {
             var fileModifiedTime = File.GetLastWriteTime(filePath);
-            var formattedDate = fileModifiedTime.ToString("yyyyMMdd_HHmmss");
-            var outputFileName = $"{Path.GetFileNameWithoutExtension(filePath)}_{formattedDate}.pdf";
-            var outputFilePath = Path.Combine(_outputDirectory, outputFileName);
+
+            //get the date (year month day)
+            string year = fileModifiedTime.Year.ToString();
+            string month = fileModifiedTime.Month.ToString("00");
+            string day = fileModifiedTime.Day.ToString("00");
+
+            // Create directories for year, month, and day if they don't exist
+            var yearDirectory = Path.Combine(_outputDirectory, year);
+            var monthDirectory = Path.Combine(yearDirectory, month);
+            var dayDirectory = Path.Combine(monthDirectory, day);
+
+            Directory.CreateDirectory(dayDirectory); // Create day directory
+
+            var formattedDate = fileModifiedTime.ToString("yyyy_MM_dd_HH_mm_ss");
+            var outputFileName = $"{formattedDate}.pdf";
+            var outputFilePath = Path.Combine(dayDirectory, outputFileName);
 
             using (var images = new MagickImageCollection(filePath))
             {
-                images.Write(Path.Combine(_outputDirectory, Path.GetFileNameWithoutExtension(filePath) + ".pdf"));
+                // Use the correct outputFilePath here
+                images.Write(outputFilePath);
             }
-            _logger.LogInformation($"Converted {filePath} to PDF.");
+
+            _logger.LogInformation($"Converted {filePath} to PDF: {outputFilePath}");
         }
         catch (Exception ex)
         {
